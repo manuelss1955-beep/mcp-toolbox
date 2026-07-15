@@ -51,6 +51,9 @@ RUN export ZIG_TARGET="" && \
 FROM debian:bookworm-slim
 WORKDIR /app
 
+# Crear usuario no-root
+RUN groupadd -r nonroot && useradd -r -g nonroot -d /app -s /sbin/nologin nonroot
+
 # Copiar binario compilado
 COPY --from=build /go/src/mcp-toolbox/mcp-toolbox /toolbox
 
@@ -58,6 +61,9 @@ COPY --from=build /go/src/mcp-toolbox/mcp-toolbox /toolbox
 COPY tools.yaml /app/tools.yaml
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
+
+# Dar permisos al usuario nonroot
+RUN chown -R nonroot:nonroot /app
 
 USER nonroot
 LABEL io.modelcontextprotocol.server.name="io.github.googleapis/mcp-toolbox"
