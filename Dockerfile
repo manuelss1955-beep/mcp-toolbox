@@ -55,5 +55,6 @@ COPY tools.yaml /app/tools.yaml
 USER nonroot
 LABEL io.modelcontextprotocol.server.name="io.github.googleapis/mcp-toolbox"
 
-# Arrancar con config y UI habilitada
-ENTRYPOINT ["/toolbox", "--config", "/app/tools.yaml", "--ui"]
+# Arrancar con config, UI, y escuchando en 0.0.0.0 (necesario para Railway)
+# Railway detecta automaticamente el puerto 5000
+ENTRYPOINT ["/toolbox", "--config", "/app/tools.yaml", "--ui", "--address", "0.0.0.0"]
