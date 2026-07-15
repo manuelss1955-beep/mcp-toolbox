@@ -189,23 +189,6 @@ func InitializeConfigs(ctx context.Context, cfg ServerConfig) (
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 
-	if cfg.ToolsetConfigs != nil {
-		for tsName, tsCfg := range cfg.ToolsetConfigs {
-			var filtered []string
-			for _, tn := range tsCfg.ToolNames {
-				if _, ok := toolsMap[tn]; ok {
-					filtered = append(filtered, tn)
-				} else if _, isTool := cfg.ToolConfigs[tn]; isTool {
-					l.InfoContext(ctx, fmt.Sprintf("Removing suppressed tool %q from toolset %q", tn, tsName))
-				} else {
-					filtered = append(filtered, tn)
-				}
-			}
-			tsCfg.ToolNames = filtered
-			cfg.ToolsetConfigs[tsName] = tsCfg
-		}
-	}
-
 	toolsetsMap, err := initializeToolsets(ctx, cfg, toolsMap, instrumentation, l)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
@@ -336,32 +319,10 @@ func initializeTools(ctx context.Context, cfg ServerConfig, sourcesMap map[strin
 			return nil, err
 		}
 
-		if sourcesMap != nil {
-			v := reflect.ValueOf(tc)
-			if v.Kind() == reflect.Pointer {
-				v = v.Elem()
-			}
-			if v.Kind() == reflect.Struct {
-				sourceField := v.FieldByName("Source")
-				if sourceField.IsValid() && sourceField.Kind() == reflect.String {
-					sourceName := sourceField.String()
-					if sourceName != "" {
-						if src, ok := sourcesMap[sourceName]; ok {
-							if rs, ok := src.(sources.ReadOnlySource); ok && rs.IsReadOnlyMode() {
-								if t.GetAnnotations() != nil && t.GetAnnotations().ReadOnlyHint != nil {
-									if !*t.GetAnnotations().ReadOnlyHint {
-										l.InfoContext(ctx, fmt.Sprintf("Suppressing write-capable tool %q bound to read-only source %q", name, sourceName))
-										continue
-									}
-								} else {
-									l.WarnContext(ctx, fmt.Sprintf("Tool %q bound to read-only source %q lacks ReadOnlyHint annotation; executing this tool may fail if it attempts write operations. If this tool is meant to be read-only, please add 'readOnlyHint: true' to its annotations. Otherwise, add 'readOnlyHint: false' to suppress it in read-only mode and save agent context window.", name, sourceName))
-								}
-							}
-						}
-					}
-				}
-			}
+		if shouldSuppressTool(ctx, l, tc, t, name, sourcesMap) {
+			continue
 		}
+
 		toolsMap[name] = t
 	}
 	toolNames := make([]string, 0, len(toolsMap))
@@ -370,6 +331,49 @@ func initializeTools(ctx context.Context, cfg ServerConfig, sourcesMap map[strin
 	}
 	l.InfoContext(ctx, fmt.Sprintf("Initialized %d tools: %s", len(toolsMap), strings.Join(toolNames, ", ")))
 	return toolsMap, nil
+}
+
+func shouldSuppressTool(ctx context.Context, l log.Logger, tc tools.ToolConfig, t tools.Tool, toolName string, sourcesMap map[string]sources.Source) bool {
+	if sourcesMap == nil {
+		return false
+	}
+
+	v := reflect.Indirect(reflect.ValueOf(tc))
+	if v.Kind() != reflect.Struct {
+		return false
+	}
+
+	sourceField := v.FieldByName("Source")
+	if !sourceField.IsValid() || sourceField.Kind() != reflect.String {
+		return false
+	}
+
+	sourceName := sourceField.String()
+	if sourceName == "" {
+		return false
+	}
+
+	src, ok := sourcesMap[sourceName]
+	if !ok {
+		return false
+	}
+
+	rs, ok := src.(sources.ReadOnlySource)
+	if !ok || !rs.IsReadOnlyMode() {
+		return false
+	}
+
+	annotations := t.GetAnnotations()
+	if annotations != nil && annotations.ReadOnlyHint != nil {
+		if !*annotations.ReadOnlyHint {
+			l.InfoContext(ctx, fmt.Sprintf("Suppressing write-capable tool %q bound to read-only source %q", toolName, sourceName))
+			return true
+		}
+		return false
+	}
+
+	l.WarnContext(ctx, fmt.Sprintf("Tool %q bound to read-only source %q lacks ReadOnlyHint annotation; executing this tool may fail if it attempts write operations. If this tool is meant to be read-only, please add 'readOnlyHint: true' to its annotations. Otherwise, add 'readOnlyHint: false' to suppress it in read-only mode and save agent context window.", toolName, sourceName))
+	return false
 }
 
 // initializeToolsets seeds a default toolset containing all tools, then
@@ -387,18 +391,22 @@ func initializeToolsets(ctx context.Context, cfg ServerConfig, toolsMap map[stri
 
 	toolsetsMap := make(map[string]tools.Toolset)
 	for name, tc := range cfg.ToolsetConfigs {
-		if cfg.IgnoreUnknownTools {
-			filteredToolNames := make([]string, 0, len(tc.ToolNames))
-			for _, tn := range tc.ToolNames {
-				if _, ok := toolsMap[tn]; ok {
-					filteredToolNames = append(filteredToolNames, tn)
-				} else {
-					l.WarnContext(ctx, fmt.Sprintf("Skipping missing tool %q in toolset %q", tn, name))
-				}
+		filteredToolNames := make([]string, 0, len(tc.ToolNames))
+		for _, tn := range tc.ToolNames {
+			if _, ok := toolsMap[tn]; ok {
+				filteredToolNames = append(filteredToolNames, tn)
+			} else if _, isTool := cfg.ToolConfigs[tn]; isTool {
+				l.InfoContext(ctx, fmt.Sprintf("Removing suppressed tool %q from toolset %q", tn, name))
+			} else if cfg.IgnoreUnknownTools {
+				l.WarnContext(ctx, fmt.Sprintf("Skipping missing tool %q in toolset %q", tn, name))
+			} else {
+				// Keep it so that Initialize returns the expected error
+				filteredToolNames = append(filteredToolNames, tn)
 			}
-			tc.ToolNames = filteredToolNames
-			cfg.ToolsetConfigs[name] = tc
 		}
+
+		tcCopy := tc
+		tcCopy.ToolNames = filteredToolNames
 
 		t, err := func() (tools.Toolset, error) {
 			_, span := instrumentation.Tracer.Start(
@@ -407,7 +415,7 @@ func initializeToolsets(ctx context.Context, cfg ServerConfig, toolsMap map[stri
 				trace.WithAttributes(attribute.String("toolset.name", name)),
 			)
 			defer span.End()
-			t, err := tc.Initialize(cfg.Version, toolsMap)
+			t, err := tcCopy.Initialize(cfg.Version, toolsMap)
 			if err != nil {
 				return tools.Toolset{}, fmt.Errorf("unable to initialize toolset %q: %w", name, err)
 			}
