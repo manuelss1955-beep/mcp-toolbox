@@ -14,8 +14,8 @@
 # Dockerfile para MCP Toolbox for Databases (Google)
 # Modificado para Railway:
 #   - Incluye tools.yaml con configuracion MongoDB
-#   - Entrypoint inline con variables de entorno
 #   - Toolbox UI habilitada
+#   - ALLOWED_ORIGINS configurable desde variable de entorno
 # ============================================================
 
 FROM --platform=$BUILDPLATFORM golang:1 AS build
@@ -64,9 +64,6 @@ RUN chown -R nonroot:nonroot /app
 USER nonroot
 LABEL io.modelcontextprotocol.server.name="io.github.googleapis/mcp-toolbox"
 
-# Entrypoint inline: usa shell para expandir variables de entorno
-# PORT  = puerto Railway (default 5000)
-# ADDRESS = direccion de escucha (default 0.0.0.0 para Railway)
-# ALLOWED_ORIGINS = origenes CORS (default *)
-# ALLOWED_HOSTS = hosts permitidos (default *)
-ENTRYPOINT ["/bin/sh", "-c", "/toolbox --config /app/tools.yaml --ui --address ${ADDRESS:-0.0.0.0} --port ${PORT:-5000} --allowed-origins ${ALLOWED_ORIGINS:--*} --allowed-hosts ${ALLOWED_HOSTS:--*}"]
+# --address y --port hardcodeados para Railway
+# ALLOWED_ORIGINS configurable desde variable de entorno (default: *)
+ENTRYPOINT ["/bin/sh", "-c", "/toolbox --config /app/tools.yaml --ui --address 0.0.0.0 --port 5000 --allowed-origins ${ALLOWED_ORIGINS:-*} --allowed-hosts ${ALLOWED_HOSTS:-*}"]
