@@ -25,7 +25,7 @@ RUN curl -fL "https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz
     rm zig.tar.xz
 
 WORKDIR /go/src/mcp-toolbox
-COPY ..
+COPY . .
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILD_TYPE="container.dev"
