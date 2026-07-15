@@ -12,7 +12,10 @@
 
 # ============================================================
 # Dockerfile para MCP Toolbox for Databases (Google)
-# Modificado para Railway: incluye tools.yaml + UI flag
+# Modificado para Railway:
+#   - Incluye tools.yaml con configuracion MongoDB
+#   - Entrypoint script con variables de entorno
+#   - Toolbox UI habilitada
 # ============================================================
 
 FROM --platform=$BUILDPLATFORM golang:1 AS build
@@ -44,17 +47,19 @@ RUN export ZIG_TARGET="" && \
     -ldflags "-X github.com/googleapis/mcp-toolbox/cmd.buildType=${BUILD_TYPE} -X github.com/googleapis/mcp-toolbox/cmd.commitSha=${COMMIT_SHA}" \
     -o mcp-toolbox .
 
-# Final Stage
-FROM gcr.io/distroless/cc-debian12:nonroot
+# Final Stage - usando debian slim para tener shell y poder usar variables de entorno
+FROM debian:bookworm-slim
 WORKDIR /app
-COPY --from=build --chown=nonroot /go/src/mcp-toolbox/mcp-toolbox /toolbox
 
-# Copiar configuración tools.yaml para MongoDB
+# Copiar binario compilado
+COPY --from=build /go/src/mcp-toolbox/mcp-toolbox /toolbox
+
+# Copiar configuracion y entrypoint
 COPY tools.yaml /app/tools.yaml
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 USER nonroot
 LABEL io.modelcontextprotocol.server.name="io.github.googleapis/mcp-toolbox"
 
-# Arrancar con config, UI, y escuchando en 0.0.0.0 (necesario para Railway)
-# Railway detecta automaticamente el puerto 5000
-ENTRYPOINT ["/toolbox", "--config", "/app/tools.yaml", "--ui", "--address", "0.0.0.0"]
+ENTRYPOINT ["/app/entrypoint.sh"]
