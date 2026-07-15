@@ -14,7 +14,7 @@
 # Dockerfile para MCP Toolbox for Databases (Google)
 # Modificado para Railway:
 #   - Incluye tools.yaml con configuracion MongoDB
-#   - Entrypoint script con variables de entorno
+#   - Entrypoint inline con variables de entorno
 #   - Toolbox UI habilitada
 # ============================================================
 
@@ -47,25 +47,26 @@ RUN export ZIG_TARGET="" && \
     -ldflags "-X github.com/googleapis/mcp-toolbox/cmd.buildType=${BUILD_TYPE} -X github.com/googleapis/mcp-toolbox/cmd.commitSha=${COMMIT_SHA}" \
     -o mcp-toolbox .
 
-# Final Stage - usando debian slim para tener shell y poder usar variables de entorno
+# Final Stage
 FROM debian:bookworm-slim
 WORKDIR /app
 
 # Crear usuario no-root
 RUN groupadd -r nonroot && useradd -r -g nonroot -d /app -s /sbin/nologin nonroot
 
-# Copiar binario compilado
+# Copiar binario y configuracion
 COPY --from=build /go/src/mcp-toolbox/mcp-toolbox /toolbox
-
-# Copiar configuracion y entrypoint
 COPY tools.yaml /app/tools.yaml
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
 
-# Dar permisos al usuario nonroot
+# Dar permisos
 RUN chown -R nonroot:nonroot /app
 
 USER nonroot
 LABEL io.modelcontextprotocol.server.name="io.github.googleapis/mcp-toolbox"
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Entrypoint inline: usa shell para expandir variables de entorno
+# PORT  = puerto Railway (default 5000)
+# ADDRESS = direccion de escucha (default 0.0.0.0 para Railway)
+# ALLOWED_ORIGINS = origenes CORS (default *)
+# ALLOWED_HOSTS = hosts permitidos (default *)
+ENTRYPOINT ["/bin/sh", "-c", "/toolbox --config /app/tools.yaml --ui --address ${ADDRESS:-0.0.0.0} --port ${PORT:-5000} --allowed-origins ${ALLOWED_ORIGINS:--*} --allowed-hosts ${ALLOWED_HOSTS:--*}"]
