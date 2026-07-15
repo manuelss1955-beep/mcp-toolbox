@@ -30,7 +30,7 @@ filterPayload: |
 filterParams:
   - name: filter
     type: string
-    description: "Filtro en formato JSON (ej. {\"status\": \"active\"}). Deja {} para traer todos."
+    description: "Filtro en formato JSON. Ejemplo: {\"status\": \"active\"}. Usa {} para traer todos."
 limit: 10
 ---
 
@@ -68,30 +68,18 @@ kind: tool
 name: insert-one
 type: mongodb-insert-one
 source: my-mongo-source
-description: "Inserta un documento en la coleccion."
+description: "Inserta un solo documento en la coleccion. El LLM pasa el documento como parametro 'data'."
 database: ${MONGO_DB}
 collection: ${MONGO_COLLECTION}
-documentPayload: |
-  {{json .document}}
-documentParams:
-  - name: document
-    type: string
-    description: "Documento a insertar en formato JSON."
 ---
 
 kind: tool
 name: insert-many
 type: mongodb-insert-many
 source: my-mongo-source
-description: "Inserta multiples documentos en la coleccion."
+description: "Inserta multiples documentos en la coleccion. El LLM pasa un array JSON como parametro 'data'."
 database: ${MONGO_DB}
 collection: ${MONGO_COLLECTION}
-documentsPayload: |
-  {{json .documents}}
-documentsParams:
-  - name: documents
-    type: string
-    description: "Array de documentos a insertar en formato JSON."
 ---
 
 kind: tool
@@ -112,7 +100,7 @@ updatePayload: |
 updateParams:
   - name: update
     type: string
-    description: "Operacion de actualizacion en formato JSON (ej. {\"$set\": {\"status\": \"inactive\"}})."
+    description: "Operacion de actualizacion en formato JSON. Ejemplo: {\"$set\": {\"status\": \"inactive\"}}."
 ---
 
 kind: tool
