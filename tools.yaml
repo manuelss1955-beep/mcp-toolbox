@@ -2,13 +2,20 @@
 # MCP Toolbox for Databases - Configuración MongoDB
 # Railway inyecta automáticamente las variables de conexión
 # cuando el servicio está en el mismo proyecto que MongoDB
+# 
+# Variables Railway disponibles:
+#   ${{MongoDB.MONGO_URL}}       - URI completa de conexión
+#   ${{MongoDB.MONGOUSER}}       - Usuario
+#   ${{MongoDB.MONGOPASSWORD}}   - Contraseña
+#   ${{MongoDB.MONGOHOST}}       - Host
+#   ${{MongoDB.MONGOPORT}}       - Puerto
 # ============================================================
 
 ---
 kind: source
 name: my-mongo-source
 type: mongodb
-uri: ${MONGO_URI}
+uri: ${MONGO_URL}
 ---
 
 kind: tool
@@ -105,7 +112,7 @@ updatePayload: |
 updateParams:
   - name: update
     type: string
-    description: Operación de actualización en formato JSON.
+    description: Operación de actualización en formato JSON (ej. {"$set": {"status": "inactive"}}).
 ---
 
 kind: tool
