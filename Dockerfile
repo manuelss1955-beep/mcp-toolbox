@@ -1,5 +1,3 @@
-# Copyright 2024 Google LLC
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,6 +9,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# ============================================================
+# Dockerfile para MCP Toolbox for Databases (Google)
+# Modificado para Railway: incluye tools.yaml + UI flag
+# ============================================================
+
 FROM --platform=$BUILDPLATFORM golang:1 AS build
 
 # Install Zig for CGO cross-compilation
@@ -21,20 +25,17 @@ RUN curl -fL "https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz
     rm zig.tar.xz
 
 WORKDIR /go/src/mcp-toolbox
-COPY . .
-
+COPY ..
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILD_TYPE="container.dev"
 ARG COMMIT_SHA=""
-
 RUN go get ./...
-
 RUN export ZIG_TARGET="" && \
     case "${TARGETARCH}" in \
-      ("amd64") ZIG_TARGET="x86_64-linux-gnu" ;; \
-      ("arm64") ZIG_TARGET="aarch64-linux-gnu" ;; \
-      (*) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
+    ("amd64") ZIG_TARGET="x86_64-linux-gnu";; \
+    ("arm64") ZIG_TARGET="aarch64-linux-gnu";; \
+    (*) echo "Unsupported architecture: ${TARGETARCH}" && exit 1;; \
     esac && \
     CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     CC="/zig/zig cc -target ${ZIG_TARGET}" \
@@ -45,11 +46,14 @@ RUN export ZIG_TARGET="" && \
 
 # Final Stage
 FROM gcr.io/distroless/cc-debian12:nonroot
-
 WORKDIR /app
 COPY --from=build --chown=nonroot /go/src/mcp-toolbox/mcp-toolbox /toolbox
-USER nonroot
 
+# Copiar configuración tools.yaml para MongoDB
+COPY tools.yaml /app/tools.yaml
+
+USER nonroot
 LABEL io.modelcontextprotocol.server.name="io.github.googleapis/mcp-toolbox"
 
-ENTRYPOINT ["/toolbox"] 
+# Arrancar con config y UI habilitada
+ENTRYPOINT ["/toolbox", "--config", "/app/tools.yaml", "--ui"]
