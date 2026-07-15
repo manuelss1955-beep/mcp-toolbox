@@ -1,0 +1,138 @@
+# ============================================================
+# MCP Toolbox for Databases - Configuración MongoDB
+# Railway inyecta automáticamente las variables de conexión
+# cuando el servicio está en el mismo proyecto que MongoDB
+# ============================================================
+
+---
+kind: source
+name: my-mongo-source
+type: mongodb
+uri: ${MONGO_URI}
+---
+
+kind: tool
+name: find-documents
+type: mongodb-find
+source: my-mongo-source
+description: Busca documentos en una colección de MongoDB con filtro opcional.
+database: ${MONGO_DB}
+collection: ${MONGO_COLLECTION}
+filterPayload: |
+  {{json .filter}}
+filterParams:
+  - name: filter
+    type: string
+    description: Filtro en formato JSON (ej. {"status": "active"}). Deja {} para traer todos.
+limit: 10
+---
+
+kind: tool
+name: find-one-document
+type: mongodb-find-one
+source: my-mongo-source
+description: Busca un solo documento en una colección.
+database: ${MONGO_DB}
+collection: ${MONGO_COLLECTION}
+filterPayload: |
+  {{json .filter}}
+filterParams:
+  - name: filter
+    type: string
+    description: Filtro en formato JSON para encontrar el documento.
+---
+
+kind: tool
+name: aggregate-documents
+type: mongodb-aggregate
+source: my-mongo-source
+description: Ejecuta un pipeline de agregación en MongoDB.
+database: ${MONGO_DB}
+collection: ${MONGO_COLLECTION}
+pipelinePayload: |
+  {{json .pipeline}}
+pipelineParams:
+  - name: pipeline
+    type: string
+    description: Pipeline de agregación en formato JSON array.
+---
+
+kind: tool
+name: insert-one
+type: mongodb-insert-one
+source: my-mongo-source
+description: Inserta un documento en la colección.
+database: ${MONGO_DB}
+collection: ${MONGO_COLLECTION}
+documentPayload: |
+  {{json .document}}
+documentParams:
+  - name: document
+    type: string
+    description: Documento a insertar en formato JSON.
+---
+
+kind: tool
+name: insert-many
+type: mongodb-insert-many
+source: my-mongo-source
+description: Inserta múltiples documentos en la colección.
+database: ${MONGO_DB}
+collection: ${MONGO_COLLECTION}
+documentsPayload: |
+  {{json .documents}}
+documentsParams:
+  - name: documents
+    type: string
+    description: Array de documentos a insertar en formato JSON.
+---
+
+kind: tool
+name: update-one
+type: mongodb-update-one
+source: my-mongo-source
+description: Actualiza un documento que coincida con el filtro.
+database: ${MONGO_DB}
+collection: ${MONGO_COLLECTION}
+filterPayload: |
+  {{json .filter}}
+filterParams:
+  - name: filter
+    type: string
+    description: Filtro para encontrar el documento a actualizar.
+updatePayload: |
+  {{json .update}}
+updateParams:
+  - name: update
+    type: string
+    description: Operación de actualización en formato JSON.
+---
+
+kind: tool
+name: delete-one
+type: mongodb-delete-one
+source: my-mongo-source
+description: Elimina un documento que coincida con el filtro.
+database: ${MONGO_DB}
+collection: ${MONGO_COLLECTION}
+filterPayload: |
+  {{json .filter}}
+filterParams:
+  - name: filter
+    type: string
+    description: Filtro para encontrar el documento a eliminar.
+---
+
+kind: tool
+name: delete-many
+type: mongodb-delete-many
+source: my-mongo-source
+description: Elimina todos los documentos que coincidan con el filtro.
+database: ${MONGO_DB}
+collection: ${MONGO_COLLECTION}
+filterPayload: |
+  {{json .filter}}
+filterParams:
+  - name: filter
+    type: string
+    description: Filtro para seleccionar documentos a eliminar.
